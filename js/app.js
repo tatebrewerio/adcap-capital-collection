@@ -24,11 +24,12 @@
   await Promise.all([UI.loadFonts('fonts'), ...prefabNames.map(n => UI.loadPrefab(n, `data/ui/${n}.json`))]);
   const uiFiles = new Set();
   for (const p of UI.prefabs.values()) for (const n of p.all()) if (n.img && n.img.file) uiFiles.add('img/ui/' + n.img.file);
+  uiFiles.add('img/ui/icon-close.png');
   await UI.preload([...uiFiles]);
   document.getElementById('loading').remove();
 
   // ------------------------------------------------------------ state (shareable through the URL hash)
-  const state = { tab: 0, viewing: 0, planet: 0, sort: 0, gender: 'm', equipped: {}, detail: null, info: null, dropdown: null };
+  const state = { query: '', tab: 0, viewing: 0, planet: 0, sort: 0, gender: 'm', equipped: {}, detail: null, info: null, dropdown: null };
   function loadState() {
     const h = new URLSearchParams(location.hash.slice(1));
     let src = h.has('e') ? h : null;
@@ -168,6 +169,39 @@
   txt(empty, 'txt_Title', L('ID_NO_ITEM_IN_INVENTORY_TEXT'));
   const filters = invPanel.find('PreScrollContent/Filters');
   filters.find('btn_Back').click = () => { state.tab = 0; dirty(); };
+
+  // Search: a second filter row built from the same dropdown box as Viewing/Planets/Sort, with the game's
+  // close X to clear it. Typing goes into a hidden <input> laid over the box so phone keyboards work.
+  const preScroll = invPanel.find('PreScrollContent');
+  preScroll.le.prefH = -1; preScroll.le.minH = -1;
+  const search = filters.find('DropdownViewing').clone();
+  search.name = 'SearchField';
+  search.children = search.children.filter(c => c.name !== 'DropdownMenu');
+  search.le = Object.assign({}, search.le, { prefH: 116, flexW: 1 });
+  attach(preScroll, search);
+  const searchBox = search.find('DropdownButton');
+  txt(searchBox, 'Labels/txt_Label', 'Search:');
+  const searchClear = searchBox.find('img_Arrow');
+  searchClear.name = 'btn_ClearSearch';
+  searchClear.img.override = 'img/ui/icon-close.png';
+  searchClear.sizeX = searchClear.sizeY = 46; searchClear.posX = -36;
+  searchClear.click = () => { setQuery(''); };
+  const searchInput = document.getElementById('search');
+  let searchFocused = false;
+  function setQuery(q) { state.query = q; searchInput.value = q; scroll.inv = 0; rebuildGrid(); dirty(); }
+  searchInput.addEventListener('input', () => { state.query = searchInput.value; scroll.inv = 0; rebuildGrid(); dirty(); });
+  searchInput.addEventListener('focus', () => { searchFocused = true; closeMenus(); dirty(); });
+  searchInput.addEventListener('blur', () => { searchFocused = false; dirty(); });
+  searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') searchInput.blur(); if (e.key === 'Escape') { setQuery(''); searchInput.blur(); } e.stopPropagation(); });
+  setInterval(() => { if (searchFocused) dirty(); }, 500);
+  const plain = s => (s || '').replace(/<[^>]*>/g, '').toLowerCase();
+  function matchesQuery(it) {
+    const q = plain(state.query).trim();
+    if (!q) return true;
+    const set = data.sets[it.GroupID];
+    const hay = plain(it.Name) + ' ' + plain(set && set.Name) + ' ' + plain(rarity(it.RarityID).name);
+    return q.split(/\s+/).every(w => hay.includes(w));
+  }
   const typeNames = [L('ID_ALL'), L('ID_HATS'), L('ID_JACKETS'), L('ID_PANTS'), L('ID_BADGES'), L('ID_TROPHIES')];
   const typeIds = [null, 'head', 'shirt', 'pants', 'badge', 'trophy'];
   const planetNames = [L('ID_ALL'), L('ID_EARTH'), L('ID_MOON'), L('ID_MARS'), 'Resort', L('ID_EVENTS'), 'Any Planet'];
@@ -201,11 +235,25 @@
       dirty();
     };
   });
-  function bindFilters() { dropdowns.forEach(d => txt(d.node, 'DropdownButton/Labels/txt_Value', d.names[state[d.key]])); }
+  function bindFilters() {
+    dropdowns.forEach(d => txt(d.node, 'DropdownButton/Labels/txt_Value', d.names[state[d.key]]));
+    const value = searchBox.find('Labels/txt_Value'), caret = searchFocused && Math.floor(Date.now() / 500) % 2 === 0 ? '_' : '';
+    if (state.query) { value.txt.text = state.query + caret; value.txt.color = [0.1961, 0.1961, 0.1961, 1]; }
+    else { value.txt.text = searchFocused ? caret || ' ' : 'Item or set name'; value.txt.color = [0.5529, 0.5294, 0.5098, 1]; }
+    searchClear.active = !!state.query;
+  }
+  // keeps the hidden input over the search box (minus the clear X) so taps focus it
+  function placeSearchInput() {
+    const show = state.tab === 1 && !popup && state.dropdown === null;
+    searchInput.style.display = show ? 'block' : 'none';
+    if (!show) { if (searchFocused) searchInput.blur(); return; }
+    const r = searchBox.rect, b = canvas.getBoundingClientRect(), k = b.width / W;
+    Object.assign(searchInput.style, { left: (b.left + r.x * k) + 'px', top: (b.top + r.y * k) + 'px', width: Math.max(0, (r.w - 110) * k) + 'px', height: (r.h * k) + 'px' });
+  }
 
   const rarityRank = id => data.rarityOrder[id] === undefined ? 99 : data.rarityOrder[id];
   function filtered() {
-    let list = items.filter(i => (typeIds[state.viewing] === null || i.Type === typeIds[state.viewing]) && planetTest[state.planet](i.ModifierLocation) && i.Icon);
+    let list = items.filter(i => (typeIds[state.viewing] === null || i.Type === typeIds[state.viewing]) && planetTest[state.planet](i.ModifierLocation) && i.Icon && matchesQuery(i));
     const byName = (a, b) => (a.Name || '').localeCompare(b.Name || '');
     if (state.sort === 0) list.sort((a, b) => rarityRank(a.RarityID) - rarityRank(b.RarityID) || byName(a, b));
     else if (state.sort === 1) list.sort((a, b) => (equippedSlot(b.ID) ? 1 : 0) - (equippedSlot(a.ID) ? 1 : 0) || rarityRank(a.RarityID) - rarityRank(b.RarityID) || byName(a, b));
@@ -346,6 +394,7 @@
     const key = state.detail ? 'd:' + state.detail + ':' + JSON.stringify(state.equipped) : state.info ? 'i:' + state.info : null;
     if (key !== popupKey) { popupKey = key; popup = state.detail ? buildDetail(byId.get(state.detail)) : state.info ? buildInfo(state.info) : null; }
     if (popup) UI.layoutRoot(popup, { x: 0, y: 0, w: W, h: H });
+    placeSearchInput();
     // draw
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#1d3b52'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -386,6 +435,6 @@
     if (h) { h.fn(); dirty(); }
   });
   canvas.addEventListener('wheel', e => { const k = scrollKeyAt(toCanvas(e)); if (!k) return; e.preventDefault(); scroll[k] += e.deltaY * (e.deltaMode === 1 ? 40 : 1) * 1.5; dirty(); }, { passive: false });
-  window.addEventListener('keydown', e => { if (e.key === 'Escape') { state.detail = null; state.info = null; closeMenus(); dirty(); } });
+  window.addEventListener('keydown', e => { if (e.key === '/' && state.tab === 1 && !popup && document.activeElement !== searchInput) { e.preventDefault(); searchInput.focus(); } if (e.key === 'Escape') { state.detail = null; state.info = null; closeMenus(); dirty(); } });
   window.addEventListener('hashchange', () => { loadState(); popupKey = null; dirty(); });
 })();

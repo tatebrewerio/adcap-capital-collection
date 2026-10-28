@@ -10,11 +10,13 @@
   html, body { margin: 0; height: 100%; background: #10202d; overflow: hidden; }
   body { display: flex; justify-content: center; align-items: center; font: 16px system-ui, sans-serif; color: #dfe9f1; }
   canvas { display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+  #search { position: fixed; display: none; margin: 0; padding: 0; border: 0; outline: none; background: transparent; color: transparent; caret-color: transparent; font-size: 16px; opacity: 0; cursor: text; }
   #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
 </style>
 </head>
 <body>
 <div id="loading">Loading the Capital Collection...</div>
+<input id="search" type="search" autocomplete="off" spellcheck="false" aria-label="Search items" placeholder="Search items">
 <canvas id="screen" aria-label="AdVenture Capitalist inventory and swag viewer"></canvas>
 <script src="js/engine.js"></script>
 <script src="js/app.js"></script>
