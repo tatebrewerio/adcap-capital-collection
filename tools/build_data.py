@@ -60,7 +60,15 @@ for i in eq['Items']:
     t=(m.get('titleKey') or {}).get('id');d=(m.get('descriptionKey') or {}).get('id')
     it={k:i.get(k) for k in ['ID','GroupID','Type','RarityID','MaxLevel','ModifierLocation','ModifierTarget','ModifierEffect','ModifierIntensity','GrowthRate','IsPercentage','SetBonus']}
     it['Name']=eng.get(t,i.get('Name'));it['Description']=eng.get(d,i.get('Description'))
-    it['Icon']=copyart(guidart(m.get('GalleryIcon')),'items')
+    icon=guidart(m.get('GalleryIcon'))
+    # A few manifests in the Equipment/Swag folder resolve to a neighbouring icon (for example the Alabaster
+    # Master Top Hat to Default_Earth_Red_Suit_Icon). The character layer they share a name with is always
+    # right, so when the icon does not match the item's slot use "<character layer>_Icon" if it exists.
+    male=guidart(m.get('MaleIcon')) if i['Type'] in('head','shirt','pants') else None
+    want={'head':'_head','shirt':'_shirt','pants':'_pants'}.get(i['Type'])
+    if male and want and (not icon or want not in icon.lower()) and (male+'_Icon').lower() in spr:
+        icon=male+'_Icon'
+    it['Icon']=copyart(icon,'items')
     if i['Type'] in('head','shirt','pants'):
         it['Male']=charart(m.get('MaleIcon'),'male');it['Female']=charart(m.get('FemaleIcon'),'female')
     items.append(it)
