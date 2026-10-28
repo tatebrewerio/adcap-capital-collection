@@ -1,6 +1,6 @@
 MIT License (code only)
 
-Copyright (c) 2026 King Tate
+Copyright (c) 2026 Tate Brewer
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of the source code in this
 repository (the files in js/, tools/ and test/, plus index.html), to deal in that code without restriction,
@@ -17,5 +17,4 @@ USE OR OTHER DEALINGS IN THE CODE.
 
 GAME ASSETS
 Everything in img/, fonts/ and data/ (artwork, fonts, UI layouts, item data and text) comes from
-AdVenture Capitalist and belongs to Hyper Hippo Entertainment. It is used here with their permission and is
-not covered by the MIT license above.
+AdVenture Capitalist and belongs to Hyper Hippo Entertainment.
